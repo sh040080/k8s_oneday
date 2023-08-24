@@ -1,0 +1,175 @@
+장원석 (GK)
+강의분야 : K8s/ container(docker) / linux(OS) / 인프라 (네트워크, 스토리지, 서버) / Cloud infra / terraform / devops
+
+쿠버네티스
+가상머신과 컨테이너 비교
+가상머신 
+Infrastructure/HyperVisor/GuestOS/App
+컨테이너
+Infrastructure/OS/ContainerEngine/App
+
+Docker
+컨테이너엔진 (이미지관리) : 컨테이너를 실행하고 관리하는 도구
+컨테이너 기반 가상화 플랫폼
+
+
+dockerFile -(build)-> Image -(run)-> container
+ Receipt                    붕어빵틀  + 리소스 - 붕어빵
+
+Image <-(pull/push)->registry(Docker Hub )
+Image registry
+
+대표적인 컨테이너 오케스트레이션 도구
+ > Kubernetes (컨테이너형 애플리케이션의 배포, 확장, 관리를 자동화)
+
+쿠버네티스 아키텍처
+클러스터 = 마스터노드 + 워커노드
+
+마스터노드 구성요소
+API : 중간다리 (user와 소통하기 위해 api사용)
+스케줄러 : 어떤노드에 파드 배치할지 결정 (ETCD 데이터를 근거로 결정) - 
+Ex) 워커노드에 파드 3개 생성
+컨트롤러매니저 : 오토스케일링, 등 컨트롤러 생성 배포 등의 컨트롤러를 관리
+ Ex) 워커노드 컨트롤러 생성
+ETCD : 구성데이터를 저장 (모든 워커노드의 구성데이터를 저장)
+
+워커노드
+kubelet : 노드의 에이전트 (워커노드 팀장님) - api 와 소통창구
+런타임 : 노드에서 컨테이너 이미지를 관리
+프록시 : 노드간 통신을 담당
+
+쿠버네티스 오브젝트 (가장 기본적인 구성단위, 상태를 관리)
+기본 오브젝트 : pod, service, volume, namespace. 
+필드
+Spec : 정의된 상태
+Status : 현재상태
+
+
+Pod : pod 안에 컨테이너 만드는거임 (여러개 가능)
+컨트롤러 있어야 rollback, auto scaling 이 가능
+
+Namespace : 물리 클러스터에서 논리적 파티셔닝 (C 드라이브, D드라이브 같은거)
+마스터노드 + 워커노드 가 default name space 있지만,
+
+
+컨트롤러 (상태 관찰하면서 현재상태가 정의된 상태를 유지하도록 오브젝트 생성, 변경 등의 관리)
+유형 : deployment, replicates, daemonset, job, cronjob 
+기능 : Auto Headline, auto scaling, update & rollback, job (job 종류후 리소스 반환 등)
+
+
+
+실습
+
+
+
+명령어
+https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands
+
+** 쿠버네티스 설치
+
+1. 마스터노드로 접속하기
+https://github.com/wsjang619/k8s_oneday/blob/main/lab1/Task%201%20-%20aws%20cloud9.md
+
+user07:~/environment $ chmod 600 k8skey.pem
+user07:~/environment $ ssh -i k8skey.pem 172.31.10.22
+ubuntu@ip-172-31-5-239:~$ who
+ubuntu   pts/0        2023-08-24 02:06 (172.31.42.10)
+
+2. 노드 구성
+https://github.com/wsjang619/k8s_oneday/blob/main/lab1/Task%202%20-%20init%2C%20join.md
+
+설정 init/join
+hostname 설정
+초기화
+kubeadm init --pod-network-cidr=172.16.0.0/16 --apiserver-advertise-address=172.31.10.22
+>> 명령어 저장 했다가 worker node에서 명령어
+kubeadm join 172.31.10.22:6443 --token 5tu5gu.kkkk3rdzre32l8pb \
+        --discovery-token-ca-cert-hash sha256:84a62baeb5482dc16e766eac7b61837d579d39fa444a6004a097ab34d7cf84b5 
+3) 노드 join
+
+** 컨테이너 배포
+3. 버전, 리소스 확인
+버전확인
+리소스 목록 확인(오브젝트, 컨트롤러 목록)
+KIND : yaml 파일 작성시 참고 가능 (대소문자 구분)
+Short name : get nodes -> get no 가능
+
+4. 리플리카셋 
+(컨트롤러의 오브젝트 중 자동복구하는 오브젝트) 파드개수 유지
+템플릿에 의해서 리플리카셋 & 파드가 생성됨
+
+5. 디플로이먼트 : 
+(리플리카셋 관리 및 app 배포관리: 리플리카셋 생성&파드생성) 버전도 관리해줌
+템플릿에 의해서 디플로이먼트 & 리플리카셋 & 파드가 생성됨
+버전업그레이드 : 새버전으로 리플리카셋 생성되고 기존 리플리카셋의 replicas가 0이됨 (=pod가 0), 그러나 리플리카셋이 사라지는건아님 (roll back을 위해서 남겨둠 default : 2개까지 저장, revisionHistoryLimit으로 설정 가능)
+업데이트 방식 (recreate - downtime발생 / rolling update (default)- 리소스 여분이 있어야함) : 
+Scale : pod 수를 조정 
+deployment로 생성된 pod 조정 : kubectl scale deployment/dp2 —replicas=3)
+replicaset으로 생성된 pod 조정 : kubectl scale rs/rs2 —replicas=3
+
+
+** 컨테이너 통신
+6. 서비스
+파드에 접근하기 위해 사용
+외부에서 접근시 서비스를 통해서 파드에 접근
+사용자는 서비스 포트로 접근
+ 타겟포트 : 서비스랑 파드랑 연결하는 포트
+셀렉트 & 라벨기반으로 연결 (서비스의 셀렉터 = 파드의 라벨)
+접근방식
+Cluster ip : 내부사용자가 서비스에 접근할 수 있는 cluster ip에 접근
+Nodeport : 생성시, cluster ip도 생성됨. 내부사용자 cluster ip로 접근가능
+외부에서 접근시 : 모든 Node에 해당 ip 같은 port로 접근하면 노드를 통해 서비스에 접근한다음 서비스에서 셀렉트 라벨기반의 포트포워딩을 통해 각각의 노드로 라운드로빈 방식으로 할당해줌
+특정 파드에 접근하고 싶을때, externalTrafficPolicy를 local로 설정 (최초 접근한 노드의 파드로만 연결해줌)
+노드포트로 접근/ 포트(서비스)-타겟포트(노드) 간 통신 시 사용
+>>curl ifconfig.io 로 공인 ip 확인한 후에 brewer에서 http://43.200.254.171:30000/ 확인 시, 웹페이지 확인 가능
+Loadbalancer : 클러스터 ip 발급 : 내부접근 가능 / 노드포트 : 외부접근 가능 + external IP 를 통해 서비스 (셀렉트라벨기반 포트포워딩) 연결 가능
+공인 IP는 돈이 든다. 클라우드기반 쿠버네티스를 사용하면 자동으로 사용 가능함
+
+7. INGRESS
+외부에서 클러스터내의 서비스에 접근하기 위한 규칙(rules)을 관리 (html, 부하분산, SSL 인증서, 서비스의 외부접근 URL 등)
+웹/모바일/기타 - ingress - service - pod
+Ingress controller가 필요함 (대표적으로 Nginx, kong을 많이 사용)
+서비스 로드밸런싱 : path에 따라 서비스 연결
+카나리업그레이드 : 기존 pod 업데이트하기 전에 테스트 거치면서 점진적으로 업데이트 함
+	 - ingress 2개 필요함
+3) https 인증서관리
+
+** 컨테이너 볼륨 & 환경변수
+8. Volume 
+pod내 각각의 컨테이너에 접근하기 위한 디렉토리
+컨테이너에서 볼륨을 마운트해서 사용. 
+- Emptydir : 임시용 (pod에 종속되므로 pod 삭제시 없어짐)
+hostPath : 노드에 종속되므로 pod 삭제해도 데이터 보존됨/ pod가 삭제됐다가 다른 노드에 생성되면 연결이 끊김
+Pv (persistent volume) : Volume 자체, 오브젝트처럼 관리됨, pod와 별도로 관리됨 , 외부 스토리지 가질 수 있음,
+Pod - pvc - pv : pod와 스토리지 분리 (볼륨을 pod에 직접 할당하지 않음)
+AccessModes : 
+Pv - pvc : 
+
+9. Configmap 
+컨테이너에서 필요한 환경설정, 환경변수를 저장, 제공하는 오브젝트
+이미지 - 1번 config map or 2번 config map 이런식으로 컨테이너 용량을 낮추면서 설정 가능
+ Key-value 형태로 yaml형태로 저장해줌
+사용할때는 pod 생성시 envfrom에 pod이름작성하여 사용 (yaml로생성)/ valueFrom에 작성 (파일로생성)
+
+10.secret
+보안관련 설정,변수를 저장 제공 (사용 방식은 config map과 동일하지만 보안이 필요한것들)
+인증서, 패스워드 기타 
+value에는 Base64 인코딩해서 저장
+
+** 컨테이너 관리
+11. Dashboard
+CPU, MEMORY 등 사용량 확인 : kubectl top (이 명령어 사용하기 위해 metros-server 설치 필요)
+워커노드의 kublet이 마스터노드의 kube-apiserver에보고한 정보를 확인 가능
+
+기타 모니터링툴 : 프로메테우스prometheus (데이터수집) —> 그라파나 grafana(대시보드생성)
+
+12. Autoscaling
+
+
+** 트러블슈팅
+1 ) 오타 (자동완성기능 사용)
+2) get / describe / logs/ exec(실행중인pod에 접속)
+
+
+
+
